@@ -4,6 +4,9 @@ var socket = io().connect('localhost:3003');
 const { RTCPeerConnection, RTCSessionDescription } = window;
 // RTCPeerConnection: stream audio and video between users.
 var peerConnection = new RTCPeerConnection()
+// "senders" storing array of people that the current client streams data to.
+var senders = []
+var currentClientVideoStream;
 
 // property "ontrack" is an EventHandler which specifies a function to be called when the track event occurs, indicating that a track has been added to the RTCPeerConnection.
 peerConnection.ontrack = function({ streams: [stream] }) {
@@ -18,11 +21,14 @@ navigator.getUserMedia(
       audio: true // we want audio track
     },
     stream => {
+      currentClientVideoStream = stream;
       const localVideo = document.getElementById("myself_video");
       if (localVideo) {
         localVideo.srcObject = stream;
       }
-      stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+      console.log("before push"+senders.forEach(sender => console.log()))
+      stream.getTracks().forEach(track => senders.push(peerConnection.addTrack(track, stream)));
+      console.log("after push"+senders)
     },
     error => {
       console.warn(error.message);
@@ -117,3 +123,18 @@ socket.on("call_made", async data => {
     isAlreadyCalling = true;
   }
 });
+
+function shareScreen() {
+  navigator.mediaDevices.getDisplayMedia({cursor: true}).then(stream => {
+    const screenTrack = stream.getTracks()[0];
+    console.log("senders"+senders);
+
+    senders.find(sender => sender.track.kind === 'video').replaceTrack(screenTrack);
+
+    screenTrack.onended = () => {
+      senders.find(sender => {
+        sender.kind === 'video'
+      }).replaceTrack(currentClientVideoStream.getTracks()[1]);
+    }
+  })
+}
